@@ -75,6 +75,43 @@ const bootstrapComponentClasses = new Set([
   'user-select-all', 'user-select-auto', 'user-select-none',
   'pe-none', 'pe-auto',
   'overflow-auto', 'overflow-hidden', 'overflow-visible', 'overflow-scroll',
+  // Sizing utilities
+  'w-25', 'w-50', 'w-75', 'w-100', 'w-auto',
+  'h-25', 'h-50', 'h-75', 'h-100', 'h-auto', 'vh-100',
+  'mw-100', 'min-vh-100',
+  // Flexbox utilities
+  'flex-row', 'flex-column', 'flex-row-reverse', 'flex-column-reverse',
+  'flex-wrap', 'flex-nowrap', 'flex-wrap-reverse',
+  'flex-grow-0', 'flex-grow-1', 'flex-shrink-0', 'flex-shrink-1',
+  'justify-content-start', 'justify-content-center', 'justify-content-end', 'justify-content-between', 'justify-content-around', 'justify-content-evenly',
+  'align-items-start', 'align-items-center', 'align-items-end', 'align-items-baseline', 'align-items-stretch',
+  'align-self-start', 'align-self-center', 'align-self-end', 'align-self-baseline', 'align-self-stretch',
+  // Gap utilities
+  'gap-0', 'gap-1', 'gap-2', 'gap-3', 'gap-4', 'gap-5',
+  'row-gap-0', 'row-gap-1', 'row-gap-2', 'row-gap-3', 'row-gap-4', 'row-gap-5',
+  'column-gap-0', 'column-gap-1', 'column-gap-2', 'column-gap-3', 'column-gap-4', 'column-gap-5',
+  // Border utilities
+  'border', 'border-0', 'border-top', 'border-top-0', 'border-end', 'border-end-0', 'border-bottom', 'border-bottom-0', 'border-start', 'border-start-0',
+  'border-1', 'border-2', 'border-3', 'border-4', 'border-5',
+  'border-primary', 'border-secondary', 'border-success', 'border-info', 'border-warning', 'border-danger', 'border-light', 'border-dark', 'border-white',
+  // Shadow utilities
+  'shadow', 'shadow-sm', 'shadow-lg', 'shadow-none',
+  // Z-index utilities
+  'z-n1', 'z-0', 'z-1', 'z-2', 'z-3', 'z-1000', 'z-1020', 'z-1030', 'z-1040', 'z-1050', 'z-1060', 'z-1070', 'z-1080',
+  // Opacity utilities
+  'opacity-0', 'opacity-25', 'opacity-50', 'opacity-75', 'opacity-100',
+  // Visibility utilities
+  'visible', 'invisible',
+  // Float utilities
+  'float-start', 'float-end', 'float-none', 'clearfix',
+  // Vertical alignment
+  'align-baseline', 'align-top', 'align-middle', 'align-bottom', 'align-text-top', 'align-text-bottom',
+  // Object fit
+  'object-fit-contain', 'object-fit-cover', 'object-fit-fill', 'object-fit-scale', 'object-fit-none',
+  // Text utilities
+  'text-nowrap', 'text-pre', 'text-wrap', 'text-break',
+  // Interaction utilities
+  'cursor-pointer',
   'd-print-block', 'd-print-flex', 'd-print-inline', 'd-print-inline-block', 'd-print-inline-flex', 'd-print-none', 'd-print-table', 'd-print-table-cell', 'd-print-table-row'
 ]);
 
@@ -84,7 +121,7 @@ function walkBladeFiles(dir) {
   while (stack.length) {
     const current = stack.pop();
     if (!current) continue;
-    
+
     try {
       const stat = fs.statSync(current);
       if (stat.isDirectory()) {
@@ -409,7 +446,34 @@ export async function applyCssToBladeFiles(cssText, bladeDirPath) {
   return { updatedFiles, map: Object.fromEntries(finalMap), existingClasses };
 }
 
-export function removeMappedStyles(cssText, existingClasses) {
+/**
+ * Determines if a CSS property is layout-critical and should be preserved
+ * even when Bootstrap utilities are applied to some instances
+ */
+function isLayoutCriticalProperty(prop, value) {
+  const layoutCriticalProps = [
+    'position',
+    'z-index',
+    'top', 'right', 'bottom', 'left',
+    'transform',
+    'animation',
+    'transition'
+  ];
+
+  // Always preserve positioning and animation properties
+  if (layoutCriticalProps.includes(prop)) return true;
+
+  // Preserve border-radius for circular elements (50%) as they're often decorative
+  if (prop === 'border-radius' && String(value).includes('50%')) return true;
+
+  // Preserve complex box-shadows and gradients
+  if (prop === 'box-shadow' && String(value).includes('var(')) return true;
+  if (prop === 'background' && String(value).includes('gradient')) return true;
+
+  return false;
+}
+
+export function removeMappedStyles(cssText, existingClasses, appliedClassesMap = new Map()) {
   const result = postcss().process(cssText, { parser: safeParser });
   const root = result.root;
   let removedDecls = 0;
@@ -425,12 +489,20 @@ export function removeMappedStyles(cssText, existingClasses) {
     });
     if (!hasRelevantClass) return;
 
-    // Remove any declarations that map to Bootstrap utilities
+    // Be more conservative about removing declarations
+    // Only remove if we can safely determine all instances have Bootstrap utilities
     r.walkDecls(d => {
       const mapped = mapDeclToBs(d.prop, d.value, null, r.selector);
       if (mapped) {
-        d.remove();
-        removedDecls += 1;
+        // Check if this is a layout-critical property that should be preserved
+        const isLayoutCritical = isLayoutCriticalProperty(d.prop, d.value);
+
+        // Only remove non-critical properties, or critical properties if we're certain
+        // all instances have Bootstrap replacements
+        if (!isLayoutCritical) {
+          d.remove();
+          removedDecls += 1;
+        }
       }
     });
 
@@ -456,12 +528,34 @@ export function removeMappedStyles(cssText, existingClasses) {
         });
         if (!hasRelevantClass) return;
 
-        // Remove any declarations that map to Bootstrap utilities
+        // Conservative removal - only remove CSS if all relevant instances in Blade files have been enhanced
         rule.walkDecls(d => {
           const mapped = mapDeclToBs(d.prop, d.value, breakpoint, rule.selector);
           if (mapped) {
-            d.remove();
-            removedDecls += 1;
+            // Check if this is a layout-critical property and if all instances are covered
+            const classTokens = extractClassTokens(rule.selector);
+            const relevantClasses = classTokens.filter(token => existingClasses.has(token) && !bootstrapComponentClasses.has(token));
+
+            let shouldRemove = true;
+
+            // For layout-critical properties, be extra conservative
+            if (isLayoutCriticalProperty(d.prop)) {
+              shouldRemove = relevantClasses.length > 0 && relevantClasses.every(className => {
+                const instances = getClassInstances(className, bladeContent);
+                return instances.length > 0 && instances.every(instance => hasBootstrapClass(instance));
+              });
+            } else {
+              // For non-critical properties, use normal conservative approach
+              shouldRemove = relevantClasses.length > 0 && relevantClasses.some(className => {
+                const instances = getClassInstances(className, bladeContent);
+                return instances.length > 0 && instances.every(instance => hasBootstrapClass(instance));
+              });
+            }
+
+            if (shouldRemove) {
+              d.remove();
+              removedDecls += 1;
+            }
           }
         });
 

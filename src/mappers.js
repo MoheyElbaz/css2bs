@@ -384,13 +384,13 @@ export function mapDeclToBs(prop, value, breakpoint = null, selector = null, htm
   // line-height
   if (p === "line-height") {
     const v = String(value).trim();
-    
+
     // Handle exact matches first
     if (v === "1") return "lh-1";
     if (v === "sm" || v === "1.25") return "lh-sm";
     if (v === "base" || v === "1.5") return "lh-base";
     if (v === "lg" || v === "2") return "lh-lg";
-    
+
     // Handle numeric values by finding closest Bootstrap line-height
     const numValue = parseFloat(v);
     if (!isNaN(numValue)) {
@@ -400,10 +400,10 @@ export function mapDeclToBs(prop, value, breakpoint = null, selector = null, htm
         { value: 1.5, class: "lh-base" },
         { value: 2, class: "lh-lg" }
       ];
-      
+
       let closest = lineHeightMap[0];
       let minDiff = Math.abs(numValue - closest.value);
-      
+
       for (const item of lineHeightMap) {
         const diff = Math.abs(numValue - item.value);
         if (diff < minDiff) {
@@ -411,10 +411,10 @@ export function mapDeclToBs(prop, value, breakpoint = null, selector = null, htm
           closest = item;
         }
       }
-      
+
       return closest.class;
     }
-    
+
     return null;
   }
 
@@ -423,13 +423,13 @@ export function mapDeclToBs(prop, value, breakpoint = null, selector = null, htm
     const vals = parseShorthand(value);
     if (!vals) return null;
     const [t, r, b, l] = vals;
-    
+
     // Check if all sides are the same - use shorthand class
     if (t === r && r === b && b === l) {
       const rem = toRem(t);
       if (rem != null) return mapSpacing("all", rem, breakpoint);
     }
-    
+
     // Check for x/y patterns
     if (t === b && r === l) {
       const classes = [];
@@ -437,7 +437,7 @@ export function mapDeclToBs(prop, value, breakpoint = null, selector = null, htm
       const rr = toRem(r); if (rr != null) classes.push(mapSpacing("x", rr, breakpoint));
       return classes.filter(Boolean).join(" ") || null;
     }
-    
+
     // Otherwise, break down to individual sides
     const classes = [];
     const tr = toRem(t); if (tr != null) classes.push(mapSpacing("t", tr, breakpoint));
@@ -472,7 +472,7 @@ export function mapDeclToBs(prop, value, breakpoint = null, selector = null, htm
     const rs = String(r).trim().toLowerCase();
     const bs = String(b).trim().toLowerCase();
     const ls = String(l).trim().toLowerCase();
-    
+
     // Check if all sides are equal (for using m- instead of individual sides)
     if (ts === rs && rs === bs && bs === ls) {
       if (ts === "auto") {
@@ -483,7 +483,7 @@ export function mapDeclToBs(prop, value, breakpoint = null, selector = null, htm
         if (rem != null) return mapMargin("all", rem, breakpoint);
       }
     }
-    
+
     const classes = [];
     const suffix = breakpoint ? `-${breakpoint}` : '';
     if (ts === "auto") classes.push(`mt${suffix}-auto`); else { const tr = toRem(t); if (tr != null) classes.push(mapMargin("t", tr, breakpoint)); }
@@ -570,13 +570,13 @@ export function mapDeclToBs(prop, value, breakpoint = null, selector = null, htm
     const v = String(value).trim().toLowerCase();
     const suffix = breakpoint ? `-${breakpoint}` : '';
 
-    // Bootstrap 5.3 font-weight classes (fw-medium and fw-semibold don't exist in Bootstrap 5.3)
+    // Bootstrap 5.3 font-weight classes
     if (v === "100" || v === "lighter") return `fw${suffix}-lighter`;
     if (v === "200") return `fw${suffix}-lighter`;
     if (v === "300" || v === "light") return `fw${suffix}-light`;
     if (v === "400" || v === "normal") return `fw${suffix}-normal`;
-    if (v === "500" || v === "medium") return `fw${suffix}-normal`; // Bootstrap doesn't have fw-medium
-    if (v === "600" || v === "semibold") return `fw${suffix}-bold`; // Bootstrap doesn't have fw-semibold
+    if (v === "500" || v === "medium") return `fw${suffix}-medium`;
+    if (v === "600" || v === "semibold") return `fw${suffix}-semibold`;
     if (v === "700" || v === "bold") return `fw${suffix}-bold`;
     if (v === "800") return `fw${suffix}-bold`;
     if (v === "900" || v === "bolder") return `fw${suffix}-bolder`;
@@ -595,6 +595,20 @@ export function mapDeclToBs(prop, value, breakpoint = null, selector = null, htm
     return null;
   }
 
+  // font-family -> font-*
+  if (p === "font-family") {
+    const v = String(value).trim().toLowerCase();
+
+    // Check for monospace fonts
+    if (v.includes("monospace") || v.includes("courier") || v.includes("consolas") ||
+        v.includes("monaco") || v.includes("menlo") || v.includes("sfmono")) {
+      return "font-monospace";
+    }
+
+    // Bootstrap doesn't have other font-family utilities beyond monospace
+    return null;
+  }
+
   // text-transform -> text-*
   if (p === "text-transform") {
     const v = String(value).trim().toLowerCase();
@@ -609,14 +623,16 @@ export function mapDeclToBs(prop, value, breakpoint = null, selector = null, htm
     return null;
   }
 
-  // text-decoration -> text-decoration-*
+  // text-decoration -> text-decoration-* (NO responsive support in Bootstrap 5.3)
   if (p === "text-decoration") {
     const v = String(value).trim().toLowerCase();
-    const suffix = breakpoint ? `-${breakpoint}` : '';
 
-    if (v.includes("underline")) return `text-decoration${suffix}-underline`;
-    if (v.includes("line-through")) return `text-decoration${suffix}-line-through`;
-    if (v === "none") return `text-decoration${suffix}-none`;
+    // Text-decoration utilities don't support responsive breakpoints in Bootstrap 5.3
+    if (breakpoint) return null;
+
+    if (v.includes("underline")) return "text-decoration-underline";
+    if (v.includes("line-through")) return "text-decoration-line-through";
+    if (v === "none") return "text-decoration-none";
 
     return null;
   }
@@ -641,9 +657,13 @@ export function mapDeclToBs(prop, value, breakpoint = null, selector = null, htm
     if (p === "top") {
       const v = String(value).trim().toLowerCase();
 
-      if (v === "0") return "top-0";
-      if (v === "50%") return "top-50";
-      if (v === "100%") return "top-100";
+      // Bootstrap 5.3 position values: 0, 50%, 100%
+      if (v === "0" || v === "0px") return "top-0";
+      if (v === "50%" || v === "0.5") return "top-50";
+      if (v === "100%" || v === "1") return "top-100";
+
+      // Handle negative values (for centering transforms)
+      if (v === "-50%") return "top-50"; // Often used with translate-middle
 
       return null;
     }
@@ -651,9 +671,13 @@ export function mapDeclToBs(prop, value, breakpoint = null, selector = null, htm
     if (p === "right") {
       const v = String(value).trim().toLowerCase();
 
-      if (v === "0") return "end-0";
-      if (v === "50%") return "end-50";
-      if (v === "100%") return "end-100";
+      // Bootstrap uses 'end' for right positioning (LTR)
+      if (v === "0" || v === "0px") return "end-0";
+      if (v === "50%" || v === "0.5") return "end-50";
+      if (v === "100%" || v === "1") return "end-100";
+
+      // Handle negative values
+      if (v === "-50%") return "end-50";
 
       return null;
     }
@@ -661,9 +685,12 @@ export function mapDeclToBs(prop, value, breakpoint = null, selector = null, htm
     if (p === "bottom") {
       const v = String(value).trim().toLowerCase();
 
-      if (v === "0") return "bottom-0";
-      if (v === "50%") return "bottom-50";
-      if (v === "100%") return "bottom-100";
+      if (v === "0" || v === "0px") return "bottom-0";
+      if (v === "50%" || v === "0.5") return "bottom-50";
+      if (v === "100%" || v === "1") return "bottom-100";
+
+      // Handle negative values
+      if (v === "-50%") return "bottom-50";
 
       return null;
     }
@@ -671,9 +698,29 @@ export function mapDeclToBs(prop, value, breakpoint = null, selector = null, htm
     if (p === "left") {
       const v = String(value).trim().toLowerCase();
 
-      if (v === "0") return "start-0";
-      if (v === "50%") return "start-50";
-      if (v === "100%") return "start-100";
+      // Bootstrap uses 'start' for left positioning (LTR)
+      if (v === "0" || v === "0px") return "start-0";
+      if (v === "50%" || v === "0.5") return "start-50";
+      if (v === "100%" || v === "1") return "start-100";
+
+      // Handle negative values
+      if (v === "-50%") return "start-50";
+
+      return null;
+    }
+
+    // transform -> translate-middle utilities
+    if (p === "transform") {
+      const v = String(value).trim().toLowerCase();
+
+      // Bootstrap centering transforms
+      if (v.includes("translate(-50%, -50%)")) return "translate-middle";
+      if (v.includes("translatex(-50%)")) return "translate-middle-x";
+      if (v.includes("translatey(-50%)")) return "translate-middle-y";
+
+      // Handle space variations
+      if (v.includes("translate( -50%, -50% )")) return "translate-middle";
+      if (v.includes("translate(-50%,-50%)")) return "translate-middle";
 
       return null;
     }
@@ -755,14 +802,16 @@ export function mapDeclToBs(prop, value, breakpoint = null, selector = null, htm
       return null;
     }
 
-    // text-align -> text-*
+    // text-align -> text-* (supports responsive breakpoints)
     if (p === "text-align") {
       const v = String(value).trim().toLowerCase();
+      const suffix = breakpoint ? `-${breakpoint}` : '';
 
-      if (v === "start" || v === "left") return "text-start";
-      if (v === "end" || v === "right") return "text-end";
-      if (v === "center") return "text-center";
-      if (v === "justify") return "text-justify";
+      if (v === "start" || v === "left") return `text${suffix}-start`;
+      if (v === "end" || v === "right") return `text${suffix}-end`;
+      if (v === "center") return `text${suffix}-center`;
+      // Note: text-justify doesn't support responsive breakpoints in Bootstrap 5.3
+      if (v === "justify" && !breakpoint) return "text-justify";
 
       return null;
     }
@@ -794,6 +843,381 @@ export function mapDeclToBs(prop, value, breakpoint = null, selector = null, htm
       if (v === "#495057") return "text-dark";
       if (v === "#343a40") return "text-dark";
 
+      return null;
+    }
+
+    // width -> w-*
+    if (p === "width") {
+      const v = String(value).trim().toLowerCase();
+      const suffix = breakpoint ? `-${breakpoint}` : '';
+
+      // Percentage values
+      if (v === "25%" || v === "0.25") return `w${suffix}-25`;
+      if (v === "50%" || v === "0.5") return `w${suffix}-50`;
+      if (v === "75%" || v === "0.75") return `w${suffix}-75`;
+      if (v === "100%" || v === "1") return `w${suffix}-100`;
+      if (v === "auto") return `w${suffix}-auto`;
+
+      // Viewport units
+      if (v === "100vw") return `vw${suffix}-100`;
+
+      // For pixel values, rem values, etc. - Bootstrap doesn't have equivalents
+      // so we don't map them and let them stay in the CSS
+      return null;
+    }
+
+    // height -> h-*
+    if (p === "height") {
+      const v = String(value).trim().toLowerCase();
+      const suffix = breakpoint ? `-${breakpoint}` : '';
+
+      if (v === "25%" || v === "0.25") return `h${suffix}-25`;
+      if (v === "50%" || v === "0.5") return `h${suffix}-50`;
+      if (v === "75%" || v === "0.75") return `h${suffix}-75`;
+      if (v === "100%" || v === "1") return `h${suffix}-100`;
+      if (v === "100vh") return `vh${suffix}-100`;
+      if (v === "auto") return `h${suffix}-auto`;
+      return null;
+    }
+
+    // max-width -> mw-*
+    if (p === "max-width") {
+      const v = String(value).trim().toLowerCase();
+      if (v === "100%" || v === "1") return "mw-100";
+      return null;
+    }
+
+    // min-height -> min-vh-*
+    if (p === "min-height") {
+      const v = String(value).trim().toLowerCase();
+      if (v === "100vh") return "min-vh-100";
+      return null;
+    }
+
+    // flex-direction -> flex-*
+    if (p === "flex-direction") {
+      const v = String(value).trim().toLowerCase();
+      const suffix = breakpoint ? `-${breakpoint}` : '';
+
+      if (v === "row") return `flex${suffix}-row`;
+      if (v === "column") return `flex${suffix}-column`;
+      if (v === "row-reverse") return `flex${suffix}-row-reverse`;
+      if (v === "column-reverse") return `flex${suffix}-column-reverse`;
+      return null;
+    }
+
+    // justify-content -> justify-content-*
+    if (p === "justify-content") {
+      const v = String(value).trim().toLowerCase();
+      const suffix = breakpoint ? `-${breakpoint}` : '';
+
+      if (v === "start" || v === "flex-start") return `justify-content${suffix}-start`;
+      if (v === "center") return `justify-content${suffix}-center`;
+      if (v === "end" || v === "flex-end") return `justify-content${suffix}-end`;
+      if (v === "space-between") return `justify-content${suffix}-between`;
+      if (v === "space-around") return `justify-content${suffix}-around`;
+      if (v === "space-evenly") return `justify-content${suffix}-evenly`;
+      return null;
+    }
+
+    // align-items -> align-items-*
+    if (p === "align-items") {
+      const v = String(value).trim().toLowerCase();
+      const suffix = breakpoint ? `-${breakpoint}` : '';
+
+      if (v === "start" || v === "flex-start") return `align-items${suffix}-start`;
+      if (v === "center") return `align-items${suffix}-center`;
+      if (v === "end" || v === "flex-end") return `align-items${suffix}-end`;
+      if (v === "baseline") return `align-items${suffix}-baseline`;
+      if (v === "stretch") return `align-items${suffix}-stretch`;
+      return null;
+    }
+
+    // align-self -> align-self-*
+    if (p === "align-self") {
+      const v = String(value).trim().toLowerCase();
+      const suffix = breakpoint ? `-${breakpoint}` : '';
+
+      if (v === "start" || v === "flex-start") return `align-self${suffix}-start`;
+      if (v === "center") return `align-self${suffix}-center`;
+      if (v === "end" || v === "flex-end") return `align-self${suffix}-end`;
+      if (v === "baseline") return `align-self${suffix}-baseline`;
+      if (v === "stretch") return `align-self${suffix}-stretch`;
+      return null;
+    }
+
+    // flex-wrap -> flex-*
+    if (p === "flex-wrap") {
+      const v = String(value).trim().toLowerCase();
+      const suffix = breakpoint ? `-${breakpoint}` : '';
+
+      if (v === "wrap") return `flex${suffix}-wrap`;
+      if (v === "nowrap") return `flex${suffix}-nowrap`;
+      if (v === "wrap-reverse") return `flex${suffix}-wrap-reverse`;
+      return null;
+    }
+
+    // flex-grow -> flex-grow-*
+    if (p === "flex-grow") {
+      const v = String(value).trim();
+      if (v === "0") return "flex-grow-0";
+      if (v === "1") return "flex-grow-1";
+      return null;
+    }
+
+    // flex-shrink -> flex-shrink-*
+    if (p === "flex-shrink") {
+      const v = String(value).trim();
+      if (v === "0") return "flex-shrink-0";
+      if (v === "1") return "flex-shrink-1";
+      return null;
+    }
+
+    // order -> order-*
+    if (p === "order") {
+      const v = String(value).trim();
+      const suffix = breakpoint ? `-${breakpoint}` : '';
+
+      if (v === "-1") return `order${suffix}-first`;
+      if (v >= "0" && v <= "5") return `order${suffix}-${v}`;
+      if (v === "999" || v === "9999") return `order${suffix}-last`;
+      return null;
+    }
+
+    // gap -> gap-*
+    if (p === "gap") {
+      const rem = toRem(value);
+      if (rem != null) {
+        const suffix = breakpoint ? `-${breakpoint}` : '';
+        const scale = nearestScale(rem);
+        return `gap${suffix}-${scale}`;
+      }
+      return null;
+    }
+
+    // row-gap -> row-gap-*
+    if (p === "row-gap") {
+      const rem = toRem(value);
+      if (rem != null) {
+        const suffix = breakpoint ? `-${breakpoint}` : '';
+        const scale = nearestScale(rem);
+        return `row-gap${suffix}-${scale}`;
+      }
+      return null;
+    }
+
+    // column-gap -> column-gap-*
+    if (p === "column-gap") {
+      const rem = toRem(value);
+      if (rem != null) {
+        const suffix = breakpoint ? `-${breakpoint}` : '';
+        const scale = nearestScale(rem);
+        return `column-gap${suffix}-${scale}`;
+      }
+      return null;
+    }
+
+    // border -> border-*
+    if (p === "border") {
+      const v = String(value).trim().toLowerCase();
+      if (v === "none" || v === "0") return "border-0";
+      if (v.includes("1px") || v.includes("thin")) return "border";
+      return null;
+    }
+
+    // border-top -> border-top
+    if (p === "border-top") {
+      const v = String(value).trim().toLowerCase();
+      if (v === "none" || v === "0") return "border-top-0";
+      if (v.includes("1px") || v.includes("thin")) return "border-top";
+      return null;
+    }
+
+    // border-end -> border-end
+    if (p === "border-right" || p === "border-inline-end") {
+      const v = String(value).trim().toLowerCase();
+      if (v === "none" || v === "0") return "border-end-0";
+      if (v.includes("1px") || v.includes("thin")) return "border-end";
+      return null;
+    }
+
+    // border-bottom -> border-bottom
+    if (p === "border-bottom") {
+      const v = String(value).trim().toLowerCase();
+      if (v === "none" || v === "0") return "border-bottom-0";
+      if (v.includes("1px") || v.includes("thin")) return "border-bottom";
+      return null;
+    }
+
+    // border-start -> border-start
+    if (p === "border-left" || p === "border-inline-start") {
+      const v = String(value).trim().toLowerCase();
+      if (v === "none" || v === "0") return "border-start-0";
+      if (v.includes("1px") || v.includes("thin")) return "border-start";
+      return null;
+    }
+
+    // border-width -> border-*
+    if (p === "border-width") {
+      const v = String(value).trim().toLowerCase();
+      if (v === "1px" || v === "thin") return "border-1";
+      if (v === "2px") return "border-2";
+      if (v === "3px") return "border-3";
+      if (v === "4px") return "border-4";
+      if (v === "5px") return "border-5";
+      return null;
+    }
+
+    // border-color -> border-*
+    if (p === "border-color") {
+      const v = String(value).trim().toLowerCase();
+
+      // Bootstrap color mappings
+      if (v === "#0d6efd" || v === "blue") return "border-primary";
+      if (v === "#6c757d" || v === "gray") return "border-secondary";
+      if (v === "#198754" || v === "green") return "border-success";
+      if (v === "#0dcaf0" || v === "cyan") return "border-info";
+      if (v === "#ffc107" || v === "yellow") return "border-warning";
+      if (v === "#dc3545" || v === "red") return "border-danger";
+      if (v === "#f8f9fa" || v === "lightgray") return "border-light";
+      if (v === "#212529" || v === "darkgray") return "border-dark";
+      if (v === "#fff" || v === "#ffffff" || v === "white") return "border-white";
+      return null;
+    }
+
+    // box-shadow -> shadow-*
+    if (p === "box-shadow") {
+      const v = String(value).trim().toLowerCase();
+      if (v === "none") return "shadow-none";
+      if (v.includes("0 1px 2px") || v.includes("small")) return "shadow-sm";
+      if (v.includes("0 4px 6px") || v.includes("0 .125rem .25rem")) return "shadow";
+      if (v.includes("0 8px 16px") || v.includes("0 .5rem 1rem")) return "shadow-lg";
+      return null;
+    }
+
+    // z-index -> z-*
+    if (p === "z-index") {
+      const v = String(value).trim();
+      if (v === "-1") return "z-n1";
+      if (v === "0") return "z-0";
+      if (v === "1") return "z-1";
+      if (v === "2") return "z-2";
+      if (v === "3") return "z-3";
+      if (v === "1000") return "z-1000";
+      if (v === "1020") return "z-1020";
+      if (v === "1030") return "z-1030";
+      if (v === "1040") return "z-1040";
+      if (v === "1050") return "z-1050";
+      if (v === "1060") return "z-1060";
+      if (v === "1070") return "z-1070";
+      if (v === "1080") return "z-1080";
+      return null;
+    }
+
+    // opacity -> opacity-*
+    if (p === "opacity") {
+      const v = parseFloat(value);
+      if (v === 0) return "opacity-0";
+      if (v === 0.25) return "opacity-25";
+      if (v === 0.5) return "opacity-50";
+      if (v === 0.75) return "opacity-75";
+      if (v === 1) return "opacity-100";
+      return null;
+    }
+
+    // visibility -> visible/invisible
+    if (p === "visibility") {
+      const v = String(value).trim().toLowerCase();
+      if (v === "visible") return "visible";
+      if (v === "hidden") return "invisible";
+      return null;
+    }
+
+    // float -> float-*
+    if (p === "float") {
+      const v = String(value).trim().toLowerCase();
+      const suffix = breakpoint ? `-${breakpoint}` : '';
+
+      if (v === "left" || v === "start") return `float${suffix}-start`;
+      if (v === "right" || v === "end") return `float${suffix}-end`;
+      if (v === "none") return `float${suffix}-none`;
+      return null;
+    }
+
+    // clear -> clearfix
+    if (p === "clear") {
+      const v = String(value).trim().toLowerCase();
+      if (v === "both" || v === "left" || v === "right") return "clearfix";
+      return null;
+    }
+
+    // vertical-align -> align-*
+    if (p === "vertical-align") {
+      const v = String(value).trim().toLowerCase();
+      if (v === "baseline") return "align-baseline";
+      if (v === "top") return "align-top";
+      if (v === "middle") return "align-middle";
+      if (v === "bottom") return "align-bottom";
+      if (v === "text-top") return "align-text-top";
+      if (v === "text-bottom") return "align-text-bottom";
+      return null;
+    }
+
+    // object-fit -> object-fit-*
+    if (p === "object-fit") {
+      const v = String(value).trim().toLowerCase();
+      if (v === "contain") return "object-fit-contain";
+      if (v === "cover") return "object-fit-cover";
+      if (v === "fill") return "object-fit-fill";
+      if (v === "scale-down") return "object-fit-scale";
+      if (v === "none") return "object-fit-none";
+      return null;
+    }
+
+    // white-space -> text-*
+    if (p === "white-space") {
+      const v = String(value).trim().toLowerCase();
+      if (v === "nowrap") return "text-nowrap";
+      if (v === "pre") return "text-pre";
+      if (v === "pre-wrap") return "text-wrap";
+      return null;
+    }
+
+    // word-break -> text-break
+    if (p === "word-break") {
+      const v = String(value).trim().toLowerCase();
+      if (v === "break-all" || v === "break-word") return "text-break";
+      return null;
+    }
+
+    // word-wrap -> text-break (according to Bootstrap docs, both properties are supported)
+    if (p === "word-wrap") {
+      const v = String(value).trim().toLowerCase();
+      if (v === "break-word") return "text-break";
+      return null;
+    }
+
+    // cursor -> cursor-pointer
+    if (p === "cursor") {
+      const v = String(value).trim().toLowerCase();
+      if (v === "pointer") return "cursor-pointer";
+      return null;
+    }
+
+    // pointer-events -> pe-*
+    if (p === "pointer-events") {
+      const v = String(value).trim().toLowerCase();
+      if (v === "none") return "pe-none";
+      if (v === "auto") return "pe-auto";
+      return null;
+    }
+
+    // user-select -> user-select-*
+    if (p === "user-select") {
+      const v = String(value).trim().toLowerCase();
+      if (v === "none") return "user-select-none";
+      if (v === "all") return "user-select-all";
+      if (v === "auto") return "user-select-auto";
       return null;
     }
   }
