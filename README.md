@@ -1,5 +1,9 @@
 # CSS2BS - Convert CSS to Bootstrap 5.3 Utilities
 
+[![npm version](https://badge.fury.io/js/css2bs.svg)](https://badge.fury.io/js/css2bs)
+[![Downloads](https://img.shields.io/npm/dt/css2bs.svg)](https://www.npmjs.com/package/css2bs)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 A comprehensive CLI tool that automatically converts CSS properties to Bootstrap 5.3 utility classes and updates your Blade templates accordingly. Convert margin, padding, typography, positioning, flexbox, colors, and more!
 
 ## 🚀 Features
@@ -20,13 +24,13 @@ A comprehensive CLI tool that automatically converts CSS properties to Bootstrap
 ## 📦 Installation
 
 ```bash
-npm install -g @local/css2bs
+npm install -g css2bs
 ```
 
 Or use locally in your project:
 
 ```bash
-npm install @local/css2bs
+npm install css2bs
 npx css2bs <cssFile> <bladeDir>
 ```
 
@@ -343,20 +347,20 @@ CSS lines reduced: -412 (2166 -> 1754)
 
 ## 📄 License
 
-This project is licensed under the UNLICENSED license.
+This project is licensed under the MIT License.
 
 ## 🐛 Issues & Support
 
 If you encounter any issues or have questions:
 
-1. Check the [Issues](https://github.com/your-username/css2bs/issues) page
+1. Check the [Issues](https://github.com/MoheyElbaz/css2bs/issues) page
 2. Create a new issue with detailed information
 3. Include your CSS and Blade file examples
 
 ## 🔄 Version History
 
-### **v1.0.0** - Complete Bootstrap 5.3 Utility System  
-🎉 **Major Release**: Comprehensive CSS-to-Bootstrap conversion tool
+### **v0.1.0** - Complete Bootstrap 5.3 Utility System  
+🎉 **Initial Release**: Comprehensive CSS-to-Bootstrap conversion tool
 
 **🚀 New Features:**
 - **100+ CSS Properties**: Complete coverage of Bootstrap 5.3 utility system
@@ -378,21 +382,10 @@ If you encounter any issues or have questions:
 - Enhanced class instance tracking for safer removal
 - Optimized memory usage for large projects
 
-### **v0.3.0** - Typography & Text Utilities
-- Font-size mapping to `fs-*` and `display-*` utilities
-- Font-weight, font-style, text-transform, text-decoration support  
-- Smart conflict resolution between `fs-*` and `display-*` classes
-- Line-height and text-alignment utilities
-
-### **v0.2.0** - Responsive Media Query Support  
-- Bootstrap 5.3 responsive breakpoints (sm, md, lg, xl, xxl)
-- Enhanced CLI output with responsive class separation
-- Improved CSS processing to avoid duplicate classes
-
-### **v0.1.0** - Initial Release
-- Basic margin, padding, line-height conversion
-- Blade template integration
-- CSS cleanup functionality
+**🔮 Future Releases:**
+- **v0.2.0** - Enhanced responsive breakpoint handling
+- **v0.3.0** - Additional CSS property support  
+- **v1.0.0** - Stable API with comprehensive testing
 
 ## 🎯 Perfect For
 
@@ -405,7 +398,7 @@ If you encounter any issues or have questions:
 
 ## 🚀 Getting Started
 
-1. **Install the tool**: `npm install -g @local/css2bs`
+1. **Install the tool**: `npm install -g css2bs`
 2. **Backup your files**: Always backup CSS and templates before conversion
 3. **Run conversion**: `css2bs path/to/styles.css path/to/views`
 4. **Review changes**: Check the output and test your application
