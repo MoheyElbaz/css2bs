@@ -33,12 +33,12 @@ program.action(async (cssFile, bladeDir, opts) => {
       for (const [k, v] of Object.entries(map)) {
         // Check if this class has responsive variants
         const responsiveClasses = v.split(' ').filter(cls =>
-          cls.includes('-sm-') || cls.includes('-md-') || cls.includes('-lg-') ||
-          cls.includes('-xl-') || cls.includes('-xxl-')
+          cls.startsWith('sm-') || cls.startsWith('md-') || cls.startsWith('lg-') ||
+          cls.startsWith('xl-') || cls.startsWith('xxl-')
         );
         const regularClasses = v.split(' ').filter(cls =>
-          !cls.includes('-sm-') && !cls.includes('-md-') && !cls.includes('-lg-') &&
-          !cls.includes('-xl-') && !cls.includes('-xxl-')
+          !cls.startsWith('sm-') && !cls.startsWith('md-') && !cls.startsWith('lg-') &&
+          !cls.startsWith('xl-') && !cls.startsWith('xxl-')
         );
 
         if (responsiveClasses.length > 0) {

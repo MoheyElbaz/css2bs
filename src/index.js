@@ -2,7 +2,7 @@ import postcss from "postcss";
 import safeParser from "postcss-safe-parser";
 import fs from "node:fs";
 import path from "node:path";
-import { mapDeclToBs, processMediaQuery } from "./mappers.js";
+import { mapDeclToBs, processMediaQuery, parseMediaQuery } from "./mappers.js";
 
 function extractClassTokens(selector) {
   // Remove attribute selectors and pseudo parts
@@ -67,6 +67,7 @@ const bootstrapComponentClasses = new Set([
   'py-0', 'py-1', 'py-2', 'py-3', 'py-4', 'py-5',
   'fs-1', 'fs-2', 'fs-3', 'fs-4', 'fs-5', 'fs-6',
   'fw-light', 'fw-normal', 'fw-bold', 'fw-bolder', 'fw-lighter',
+  'display-1', 'display-2', 'display-3', 'display-4', 'display-5', 'display-6',
   'fst-italic', 'fst-normal',
   'lh-1', 'lh-sm', 'lh-base', 'lh-lg',
   'text-decoration-none', 'text-decoration-underline', 'text-decoration-line-through',
@@ -83,16 +84,23 @@ function walkBladeFiles(dir) {
   while (stack.length) {
     const current = stack.pop();
     if (!current) continue;
-    const stat = fs.statSync(current);
-    if (stat.isDirectory()) {
-      for (const entry of fs.readdirSync(current)) {
-        if (entry === "node_modules" || entry.startsWith(".")) continue;
-        stack.push(path.join(current, entry));
+    
+    try {
+      const stat = fs.statSync(current);
+      if (stat.isDirectory()) {
+        for (const entry of fs.readdirSync(current)) {
+          if (entry === "node_modules" || entry.startsWith(".")) continue;
+          stack.push(path.join(current, entry));
+        }
+      } else if (stat.isFile()) {
+        if (current.endsWith(".blade.php") || current.endsWith(".php") || current.endsWith(".blade.html")) {
+          results.push(current);
+        }
       }
-    } else if (stat.isFile()) {
-      if (current.endsWith(".blade.php") || current.endsWith(".php") || current.endsWith(".blade.html")) {
-        results.push(current);
-      }
+    } catch (err) {
+      // Skip files/directories that can't be accessed (permission issues, broken symlinks, etc.)
+      console.warn(`Warning: Could not access ${current}: ${err.message}`);
+      continue;
     }
   }
   return results;
@@ -116,19 +124,21 @@ function cleanConflictingClasses(classes) {
 
   for (const token of tokens) {
     if (token.includes('display-')) {
-      if (token.startsWith('sm-')) classGroups.display.sm.push(token);
-      else if (token.startsWith('md-')) classGroups.display.md.push(token);
-      else if (token.startsWith('lg-')) classGroups.display.lg.push(token);
-      else if (token.startsWith('xl-')) classGroups.display.xl.push(token);
-      else if (token.startsWith('xxl-')) classGroups.display.xxl.push(token);
-      else classGroups.display.regular.push(token);
+      // Check for responsive display classes: sm-display-1, md-display-2, etc.
+      if (token.match(/^(sm|md|lg|xl|xxl)-display-/)) {
+        const breakpoint = token.split('-')[0];
+        classGroups.display[breakpoint].push(token);
+      } else {
+        classGroups.display.regular.push(token);
+      }
     } else if (token.includes('fs-')) {
-      if (token.startsWith('sm-')) classGroups.fs.sm.push(token);
-      else if (token.startsWith('md-')) classGroups.fs.md.push(token);
-      else if (token.startsWith('lg-')) classGroups.fs.lg.push(token);
-      else if (token.startsWith('xl-')) classGroups.fs.xl.push(token);
-      else if (token.startsWith('xxl-')) classGroups.fs.xxl.push(token);
-      else classGroups.fs.regular.push(token);
+      // Check for responsive font-size classes: sm-fs-1, md-fs-2, etc.
+      if (token.match(/^(sm|md|lg|xl|xxl)-fs-/)) {
+        const breakpoint = token.split('-')[0];
+        classGroups.fs[breakpoint].push(token);
+      } else {
+        classGroups.fs.regular.push(token);
+      }
     } else {
       otherClasses.push(token);
     }
@@ -227,7 +237,9 @@ export async function convertCssToBootstrap(cssText, { selector = "" } = {}) {
       if (selector && !rule.selector.split(",").map(s => s.trim()).includes(selector)) return;
       const mapped = [];
       rule.walkDecls(d => {
-        const cls = mapDeclToBs(d.prop, d.value, null, rule.selector);
+        // Get the breakpoint from the media query
+        const breakpoint = parseMediaQuery ? parseMediaQuery(mediaQuery) : null;
+        const cls = mapDeclToBs(d.prop, d.value, breakpoint, rule.selector);
         if (cls) mapped.push(cls);
       });
       if (mapped.length) {
@@ -236,11 +248,11 @@ export async function convertCssToBootstrap(cssText, { selector = "" } = {}) {
     });
 
     if (mediaRules.length > 0) {
-      const mediaResult = processMediaQuery(mediaQuery, mediaRules);
-      if (mediaResult) {
+      const breakpoint = parseMediaQuery(mediaQuery);
+      if (breakpoint) {
         mediaQueries.push({
           mediaQuery,
-          breakpoint: mediaResult.breakpoint,
+          breakpoint,
           rules: mediaRules
         });
       }
@@ -279,15 +291,20 @@ export async function applyCssToBladeFiles(cssText, bladeDirPath) {
   const existingClasses = new Set();
 
   for (const file of files) {
-    const content = fs.readFileSync(file, "utf8");
-    // Extract all class tokens from class attributes
-    const matches = content.match(/class\s*=\s*["']([^"']*)["']/g) || [];
-    for (const match of matches) {
-      const classValue = match.match(/class\s*=\s*["']([^"']*)["']/)[1];
-      const tokens = classValue.split(/\s+/).filter(Boolean);
-      for (const token of tokens) {
-        existingClasses.add(token);
+    try {
+      const content = fs.readFileSync(file, "utf8");
+      // Extract all class tokens from class attributes
+      const matches = content.match(/class\s*=\s*["']([^"']*)["']/g) || [];
+      for (const match of matches) {
+        const classValue = match.match(/class\s*=\s*["']([^"']*)["']/)[1];
+        const tokens = classValue.split(/\s+/).filter(Boolean);
+        for (const token of tokens) {
+          existingClasses.add(token);
+        }
       }
+    } catch (err) {
+      console.warn(`Warning: Could not read file ${file}: ${err.message}`);
+      continue;
     }
   }
 
@@ -299,15 +316,15 @@ export async function applyCssToBladeFiles(cssText, bladeDirPath) {
   // Process media queries first to track which selectors are handled responsively
   root.walkAtRules('media', atRule => {
     const mediaQuery = atRule.params;
-    const mediaResult = processMediaQuery(mediaQuery, [atRule]);
+    const breakpoint = parseMediaQuery(mediaQuery);
 
-    if (mediaResult) {
+    if (breakpoint) {
       atRule.walkRules(rule => {
         const selectors = rule.selector.split(",").map(s => s.trim());
         for (const sel of selectors) {
           const tokens = [];
           rule.walkDecls(d => {
-            const cls = mapDeclToBs(d.prop, d.value, mediaResult.breakpoint, rule.selector);
+            const cls = mapDeclToBs(d.prop, d.value, breakpoint, rule.selector, cssText);
             if (cls) tokens.push(cls);
           });
           if (!tokens.length) continue;
@@ -343,7 +360,7 @@ export async function applyCssToBladeFiles(cssText, bladeDirPath) {
 
       const tokens = [];
       r.walkDecls(d => {
-        const cls = mapDeclToBs(d.prop, d.value, null, r.selector);
+        const cls = mapDeclToBs(d.prop, d.value, null, r.selector, cssText);
         if (cls) tokens.push(cls);
       });
       if (!tokens.length) continue;
@@ -373,14 +390,19 @@ export async function applyCssToBladeFiles(cssText, bladeDirPath) {
 
   const updatedFiles = [];
   for (const file of files) {
-    const original = fs.readFileSync(file, "utf8");
-    let updated = original;
-    for (const [classToken, bs] of finalMap) {
-      updated = appendBootstrapClassesInClassAttr(updated, classToken, bs);
-    }
-    if (updated !== original) {
-      fs.writeFileSync(file, updated);
-      updatedFiles.push(file);
+    try {
+      const original = fs.readFileSync(file, "utf8");
+      let updated = original;
+      for (const [classToken, bs] of finalMap) {
+        updated = appendBootstrapClassesInClassAttr(updated, classToken, bs);
+      }
+      if (updated !== original) {
+        fs.writeFileSync(file, updated);
+        updatedFiles.push(file);
+      }
+    } catch (err) {
+      console.warn(`Warning: Could not process file ${file}: ${err.message}`);
+      continue;
     }
   }
 
@@ -405,10 +427,6 @@ export function removeMappedStyles(cssText, existingClasses) {
 
     // Remove any declarations that map to Bootstrap utilities
     r.walkDecls(d => {
-      // Do not remove text-decoration unless we explicitly appended a Bootstrap replacement.
-      // For safety, skip removal of text-decoration here.
-      if (String(d.prop).toLowerCase() === 'text-decoration') return;
-
       const mapped = mapDeclToBs(d.prop, d.value, null, r.selector);
       if (mapped) {
         d.remove();
@@ -426,9 +444,9 @@ export function removeMappedStyles(cssText, existingClasses) {
   // Process media queries
   root.walkAtRules('media', atRule => {
     const mediaQuery = atRule.params;
-    const mediaResult = processMediaQuery(mediaQuery, [atRule]);
+    const breakpoint = parseMediaQuery(mediaQuery);
 
-    if (mediaResult) {
+    if (breakpoint) {
       atRule.walkRules(rule => {
         const selectors = rule.selector.split(",").map(s => s.trim());
         // Only operate on rules that contain at least one class selector that exists in Blade files
@@ -440,10 +458,7 @@ export function removeMappedStyles(cssText, existingClasses) {
 
         // Remove any declarations that map to Bootstrap utilities
         rule.walkDecls(d => {
-          // Do not remove text-decoration in responsive rules either unless replaced explicitly.
-          if (String(d.prop).toLowerCase() === 'text-decoration') return;
-
-          const mapped = mapDeclToBs(d.prop, d.value, mediaResult.breakpoint, rule.selector);
+          const mapped = mapDeclToBs(d.prop, d.value, breakpoint, rule.selector);
           if (mapped) {
             d.remove();
             removedDecls += 1;
