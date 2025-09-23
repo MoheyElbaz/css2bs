@@ -1,0 +1,23 @@
+{
+  "name": "@local/css2bs",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "CLI tool to convert simple CSS rules to Bootstrap utility class names",
+  "bin": {
+    "css2bs": "bin/cli.js"
+  },
+  "main": "src/index.js",
+  "files": ["bin", "src"],
+  "scripts": {
+    "dev": "node bin/cli.js --help",
+    "test": "node test/run.js"
+  },
+  "dependencies": {
+    "commander": "^12.1.0",
+    "postcss": "^8.4.41",
+    "postcss-safe-parser": "^7.0.0"
+  },
+  "engines": { "node": ">=18" },
+  "license": "UNLICENSED"
+}
