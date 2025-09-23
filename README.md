@@ -5,6 +5,7 @@ A powerful CLI tool that automatically converts CSS spacing and line-height prop
 ## 🚀 Features
 
 - **Smart CSS Analysis**: Scans CSS files for margin, padding, and line-height properties
+- **Bootstrap 5.3 Responsive Support**: Converts CSS media queries to Bootstrap responsive utility classes
 - **Bootstrap 5 Mapping**: Converts CSS values to equivalent Bootstrap utility classes
 - **Blade Template Updates**: Automatically appends Bootstrap classes to existing class attributes
 - **CSS Cleanup**: Removes redundant CSS rules after conversion
@@ -48,6 +49,12 @@ css2bs path/to/styles.css path/to/resources/views
     margin: 0 auto 1rem;
     line-height: 1.5;
 }
+
+@media (min-width: 768px) {
+    .hero-subtitle {
+        margin: 0 auto 2rem;
+    }
+}
 ```
 
 ```html
@@ -56,11 +63,11 @@ css2bs path/to/styles.css path/to/resources/views
 
 **After:**
 ```css
-/* Rule removed from CSS */
+/* Rules removed from CSS */
 ```
 
 ```html
-<p class="hero-subtitle mb-0 me-auto ms-auto mt-0 lh-base">Welcome to our site</p>
+<p class="hero-subtitle mb-0 me-auto ms-auto mt-0 lh-base md-mb-5 md-me-auto md-ms-auto md-mt-0">Welcome to our site</p>
 ```
 
 ## 🎨 Supported CSS Properties
@@ -76,15 +83,24 @@ css2bs path/to/styles.css path/to/resources/views
 ### Line Height
 - `line-height`
 
+### Media Queries
+- `@media (min-width: 576px)` → `sm-*` classes
+- `@media (min-width: 768px)` → `md-*` classes
+- `@media (min-width: 992px)` → `lg-*` classes
+- `@media (min-width: 1200px)` → `xl-*` classes
+- `@media (min-width: 1400px)` → `xxl-*` classes
+
 ### Units Supported
 - `px` (converted to rem using 16px base)
 - `rem`
 - `em` (treated as rem)
 - `auto` (for margins)
 
-## 🔧 Bootstrap 5 Mapping
+## 🔧 Bootstrap 5.3 Mapping
 
-The tool maps CSS values to Bootstrap 5 spacing scale:
+The tool maps CSS values to Bootstrap 5.3 spacing scale:
+
+### Base Spacing Scale
 
 | CSS Value | Bootstrap Class | Rem Equivalent |
 |-----------|----------------|----------------|
@@ -94,6 +110,16 @@ The tool maps CSS values to Bootstrap 5 spacing scale:
 | `1rem` | `m-3`, `p-3` | 1rem |
 | `1.5rem` | `m-4`, `p-4` | 1.5rem |
 | `3rem` | `m-5`, `p-5` | 3rem |
+
+### Responsive Breakpoints
+
+| Media Query | Bootstrap Breakpoint | Class Prefix |
+|-------------|---------------------|--------------|
+| `@media (min-width: 576px)` | `sm` | `sm-*` |
+| `@media (min-width: 768px)` | `md` | `md-*` |
+| `@media (min-width: 992px)` | `lg` | `lg-*` |
+| `@media (min-width: 1200px)` | `xl` | `xl-*` |
+| `@media (min-width: 1400px)` | `xxl` | `xxl-*` |
 
 ### Line Height Mapping
 
@@ -158,7 +184,8 @@ Updated files: 8
  • /path/to/services.blade.php
 
 Class mappings:
-  hero-subtitle => mb-0 me-auto ms-auto mt-0 lh-base
+  hero-subtitle => Responsive: md-mb-5 md-me-auto md-ms-auto md-mt-0
+  hero-subtitle => Regular: mb-0 me-auto ms-auto mt-0 lh-base
   section-title => mb-2
   contact-card-icon => mb-0 me-auto ms-auto mt-0
   footer-links => mb-0 mb-2 me-0 ms-0 mt-0 pb-0 pe-0 ps-0 ps-2 pt-0
@@ -208,6 +235,11 @@ If you encounter any issues or have questions:
 3. Include your CSS and Blade file examples
 
 ## 🔄 Version History
+
+- **v0.2.0**: Added Bootstrap 5.3 responsive media query support
+- Support for responsive breakpoints (sm, md, lg, xl, xxl)
+- Enhanced CLI output with responsive class separation
+- Improved CSS processing to avoid duplicate classes
 
 - **v0.1.0**: Initial release with basic CSS to Bootstrap conversion
 - Support for margin, padding, and line-height properties

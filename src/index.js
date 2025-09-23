@@ -2,7 +2,7 @@ import postcss from "postcss";
 import safeParser from "postcss-safe-parser";
 import fs from "node:fs";
 import path from "node:path";
-import { mapDeclToBs } from "./mappers.js";
+import { mapDeclToBs, processMediaQuery } from "./mappers.js";
 
 function extractClassTokens(selector) {
   // Remove attribute selectors and pseudo parts
@@ -122,6 +122,9 @@ export async function convertCssToBootstrap(cssText, { selector = "" } = {}) {
   const root = postcss().process(cssText, { parser: safeParser }).root;
 
   const rules = [];
+  const mediaQueries = [];
+
+  // Process regular rules
   root.walkRules(r => {
     if (selector && !r.selector.split(",").map(s => s.trim()).includes(selector)) return;
     const mapped = [];
@@ -134,11 +137,49 @@ export async function convertCssToBootstrap(cssText, { selector = "" } = {}) {
     }
   });
 
+  // Process media queries
+  root.walkAtRules('media', atRule => {
+    const mediaQuery = atRule.params;
+    const mediaRules = [];
+
+    atRule.walkRules(rule => {
+      if (selector && !rule.selector.split(",").map(s => s.trim()).includes(selector)) return;
+      const mapped = [];
+      rule.walkDecls(d => {
+        const cls = mapDeclToBs(d.prop, d.value);
+        if (cls) mapped.push(cls);
+      });
+      if (mapped.length) {
+        mediaRules.push({ selector: rule.selector, classes: Array.from(new Set(mapped)).sort() });
+      }
+    });
+
+    if (mediaRules.length > 0) {
+      const mediaResult = processMediaQuery(mediaQuery, mediaRules);
+      if (mediaResult) {
+        mediaQueries.push({
+          mediaQuery,
+          breakpoint: mediaResult.breakpoint,
+          rules: mediaRules
+        });
+      }
+    }
+  });
+
   // Build a simple text table
   const lines = [];
   for (const r of rules) {
     lines.push(`${r.selector}  =>  ${r.classes.join(" ")}`);
   }
+
+  // Add media query rules
+  for (const mq of mediaQueries) {
+    lines.push(`\n/* ${mq.mediaQuery} */`);
+    for (const r of mq.rules) {
+      lines.push(`${r.selector}  =>  ${r.classes.join(" ")}`);
+    }
+  }
+
   const text = lines.join("\n");
 
   // Tiny HTML demo for the first rule (if selector provided, use that)
@@ -148,7 +189,7 @@ export async function convertCssToBootstrap(cssText, { selector = "" } = {}) {
 <div class="${demo.classes.join(" ")}">Mapped from ${demo.selector}</div>`
     : "<!-- No mappable rules found -->";
 
-  return { text, html };
+  return { text, html, mediaQueries };
 }
 
 export async function applyCssToBladeFiles(cssText, bladeDirPath) {
@@ -172,9 +213,53 @@ export async function applyCssToBladeFiles(cssText, bladeDirPath) {
   const root = postcss().process(cssText, { parser: safeParser }).root;
   // Build mapping of class token -> bootstrap classes string
   const classTokenToBs = new Map();
+  const processedInMediaQueries = new Set();
+
+  // Process media queries first to track which selectors are handled responsively
+  root.walkAtRules('media', atRule => {
+    const mediaQuery = atRule.params;
+    const mediaResult = processMediaQuery(mediaQuery, [atRule]);
+
+    if (mediaResult) {
+      atRule.walkRules(rule => {
+        const selectors = rule.selector.split(",").map(s => s.trim());
+        for (const sel of selectors) {
+          const tokens = [];
+          rule.walkDecls(d => {
+            const cls = mapDeclToBs(d.prop, d.value, mediaResult.breakpoint);
+            if (cls) tokens.push(cls);
+          });
+          if (!tokens.length) continue;
+          const bsClasses = Array.from(new Set(tokens)).sort().join(" ");
+          // For each class in the selector, append mappings (conservative: use the last class)
+          const classTokens = extractClassTokens(sel);
+          const target = classTokens[classTokens.length - 1];
+          if (!target) continue;
+
+          // Skip Bootstrap component classes
+          if (bootstrapComponentClasses.has(target)) continue;
+
+          // Only process if this class actually exists in Blade files
+          if (!existingClasses.has(target)) continue;
+
+          // Mark this selector as processed in media query
+          processedInMediaQueries.add(sel);
+
+          const prev = classTokenToBs.get(target) || new Set();
+          for (const t of bsClasses.split(" ")) prev.add(t);
+          classTokenToBs.set(target, prev);
+        }
+      });
+    }
+  });
+
+  // Process regular rules, but skip selectors that were already processed in media queries
   root.walkRules(r => {
     const selectors = r.selector.split(",").map(s => s.trim());
     for (const sel of selectors) {
+      // Skip if this selector was already processed in a media query
+      if (processedInMediaQueries.has(sel)) continue;
+
       const tokens = [];
       r.walkDecls(d => {
         const cls = mapDeclToBs(d.prop, d.value);
@@ -227,6 +312,7 @@ export function removeMappedStyles(cssText, existingClasses) {
   let removedDecls = 0;
   let removedRules = 0;
 
+  // Process regular rules
   root.walkRules(r => {
     const selectors = r.selector.split(",").map(s => s.trim());
     // Only operate on rules that contain at least one class selector that exists in Blade files
@@ -249,6 +335,45 @@ export function removeMappedStyles(cssText, existingClasses) {
     if (r.nodes == null || r.nodes.length === 0) {
       r.remove();
       removedRules += 1;
+    }
+  });
+
+  // Process media queries
+  root.walkAtRules('media', atRule => {
+    const mediaQuery = atRule.params;
+    const mediaResult = processMediaQuery(mediaQuery, [atRule]);
+
+    if (mediaResult) {
+      atRule.walkRules(rule => {
+        const selectors = rule.selector.split(",").map(s => s.trim());
+        // Only operate on rules that contain at least one class selector that exists in Blade files
+        const hasRelevantClass = selectors.some(sel => {
+          const classTokens = extractClassTokens(sel);
+          return classTokens.some(token => existingClasses.has(token) && !bootstrapComponentClasses.has(token));
+        });
+        if (!hasRelevantClass) return;
+
+        // Remove any declarations that map to Bootstrap utilities
+        rule.walkDecls(d => {
+          const mapped = mapDeclToBs(d.prop, d.value, mediaResult.breakpoint);
+          if (mapped) {
+            d.remove();
+            removedDecls += 1;
+          }
+        });
+
+        // If rule is now empty, remove it
+        if (rule.nodes == null || rule.nodes.length === 0) {
+          rule.remove();
+          removedRules += 1;
+        }
+      });
+
+      // If media query is now empty, remove it
+      if (atRule.nodes == null || atRule.nodes.length === 0) {
+        atRule.remove();
+        removedRules += 1;
+      }
     }
   });
 

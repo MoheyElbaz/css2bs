@@ -30,7 +30,26 @@ program.action(async (cssFile, bladeDir, opts) => {
     for (const f of updatedFiles) console.log(` ${colors.cyan('•')} ${f}`);
     if (Object.keys(map || {}).length) {
       console.log(colors.bold("Class mappings:"));
-      for (const [k, v] of Object.entries(map)) console.log(`  ${colors.cyan(k)} => ${v}`);
+      for (const [k, v] of Object.entries(map)) {
+        // Check if this class has responsive variants
+        const responsiveClasses = v.split(' ').filter(cls =>
+          cls.includes('-sm-') || cls.includes('-md-') || cls.includes('-lg-') ||
+          cls.includes('-xl-') || cls.includes('-xxl-')
+        );
+        const regularClasses = v.split(' ').filter(cls =>
+          !cls.includes('-sm-') && !cls.includes('-md-') && !cls.includes('-lg-') &&
+          !cls.includes('-xl-') && !cls.includes('-xxl-')
+        );
+
+        if (responsiveClasses.length > 0) {
+          console.log(`  ${colors.cyan(k)} => ${colors.yellow('Responsive:')} ${responsiveClasses.join(' ')}`);
+          if (regularClasses.length > 0) {
+            console.log(`  ${colors.cyan(k)} => ${colors.green('Regular:')} ${regularClasses.join(' ')}`);
+          }
+        } else {
+          console.log(`  ${colors.cyan(k)} => ${v}`);
+        }
+      }
     }
 
     // Remove mapped styles from CSS and write back
