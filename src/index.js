@@ -98,17 +98,98 @@ function walkBladeFiles(dir) {
   return results;
 }
 
+/**
+ * Clean up conflicting responsive classes
+ */
+function cleanConflictingClasses(classes) {
+  const tokens = classes.split(/\s+/).filter(Boolean);
+  const cleaned = [];
+
+  // Group classes by type and breakpoint
+  const classGroups = {
+    display: { regular: [], sm: [], md: [], lg: [], xl: [], xxl: [] },
+    fs: { regular: [], sm: [], md: [], lg: [], xl: [], xxl: [] }
+  };
+
+  // Separate font-related classes from other classes
+  const otherClasses = [];
+
+  for (const token of tokens) {
+    if (token.includes('display-')) {
+      if (token.startsWith('sm-')) classGroups.display.sm.push(token);
+      else if (token.startsWith('md-')) classGroups.display.md.push(token);
+      else if (token.startsWith('lg-')) classGroups.display.lg.push(token);
+      else if (token.startsWith('xl-')) classGroups.display.xl.push(token);
+      else if (token.startsWith('xxl-')) classGroups.display.xxl.push(token);
+      else classGroups.display.regular.push(token);
+    } else if (token.includes('fs-')) {
+      if (token.startsWith('sm-')) classGroups.fs.sm.push(token);
+      else if (token.startsWith('md-')) classGroups.fs.md.push(token);
+      else if (token.startsWith('lg-')) classGroups.fs.lg.push(token);
+      else if (token.startsWith('xl-')) classGroups.fs.xl.push(token);
+      else if (token.startsWith('xxl-')) classGroups.fs.xxl.push(token);
+      else classGroups.fs.regular.push(token);
+    } else {
+      otherClasses.push(token);
+    }
+  }
+
+  // Check if we have any display classes at all
+  const hasAnyDisplayClasses = Object.values(classGroups.display).some(arr => arr.length > 0);
+  const hasAnyFsClasses = Object.values(classGroups.fs).some(arr => arr.length > 0);
+
+  // If we have both display and fs classes, prefer display and remove all fs classes
+  if (hasAnyDisplayClasses && hasAnyFsClasses) {
+    // Only add display classes, ignore fs classes
+    const breakpoints = ['regular', 'sm', 'md', 'lg', 'xl', 'xxl'];
+    for (const breakpoint of breakpoints) {
+      cleaned.push(...classGroups.display[breakpoint]);
+    }
+  } else if (hasAnyDisplayClasses) {
+    // Only display classes - choose the largest size for each breakpoint
+    const breakpoints = ['regular', 'sm', 'md', 'lg', 'xl', 'xxl'];
+    for (const breakpoint of breakpoints) {
+      const displayClasses = classGroups.display[breakpoint];
+      if (displayClasses.length > 0) {
+        // Choose the largest display class (display-1 is largest)
+        const sortedClasses = displayClasses.sort((a, b) => {
+          const aNum = parseInt(a.match(/display-(\d+)/)?.[1] || '0');
+          const bNum = parseInt(b.match(/display-(\d+)/)?.[1] || '0');
+          return aNum - bNum; // Smaller number = larger display
+        });
+        cleaned.push(sortedClasses[0]); // Take the largest (smallest number)
+      }
+    }
+  } else if (hasAnyFsClasses) {
+    // Only fs classes
+    const breakpoints = ['regular', 'sm', 'md', 'lg', 'xl', 'xxl'];
+    for (const breakpoint of breakpoints) {
+      cleaned.push(...classGroups.fs[breakpoint]);
+    }
+  }
+
+  // Add all other classes
+  cleaned.push(...otherClasses);
+
+  // Remove duplicates and return
+  const uniqueClasses = [...new Set(cleaned)];
+  return uniqueClasses.join(' ');
+}
+
 function appendBootstrapClassesInClassAttr(html, classToken, classesToAppend) {
   // Find class attributes; append classesToAppend if classToken present
   return html.replace(/class\s*=\s*(["'])([\s\S]*?)\1/g, (m, quote, classValue) => {
     const tokens = classValue.split(/\s+/).filter(Boolean);
     if (!tokens.includes(classToken)) return m; // untouched
     const appendTokens = classesToAppend.split(/\s+/).filter(Boolean);
-    // Only append classes that aren't already present
-    for (const t of appendTokens) {
-      if (!tokens.includes(t)) tokens.push(t);
-    }
-    return `class=${quote}${tokens.join(" ")}${quote}`;
+
+    // Combine existing and new classes
+    const allClasses = [...tokens, ...appendTokens].join(' ');
+
+    // Clean up conflicting classes
+    const cleanedClasses = cleanConflictingClasses(allClasses);
+
+    return `class=${quote}${cleanedClasses}${quote}`;
   });
 }
 
@@ -129,7 +210,7 @@ export async function convertCssToBootstrap(cssText, { selector = "" } = {}) {
     if (selector && !r.selector.split(",").map(s => s.trim()).includes(selector)) return;
     const mapped = [];
     r.walkDecls(d => {
-      const cls = mapDeclToBs(d.prop, d.value);
+      const cls = mapDeclToBs(d.prop, d.value, null, r.selector);
       if (cls) mapped.push(cls);
     });
     if (mapped.length) {
@@ -146,7 +227,7 @@ export async function convertCssToBootstrap(cssText, { selector = "" } = {}) {
       if (selector && !rule.selector.split(",").map(s => s.trim()).includes(selector)) return;
       const mapped = [];
       rule.walkDecls(d => {
-        const cls = mapDeclToBs(d.prop, d.value);
+        const cls = mapDeclToBs(d.prop, d.value, null, rule.selector);
         if (cls) mapped.push(cls);
       });
       if (mapped.length) {
@@ -226,7 +307,7 @@ export async function applyCssToBladeFiles(cssText, bladeDirPath) {
         for (const sel of selectors) {
           const tokens = [];
           rule.walkDecls(d => {
-            const cls = mapDeclToBs(d.prop, d.value, mediaResult.breakpoint);
+            const cls = mapDeclToBs(d.prop, d.value, mediaResult.breakpoint, rule.selector);
             if (cls) tokens.push(cls);
           });
           if (!tokens.length) continue;
@@ -262,7 +343,7 @@ export async function applyCssToBladeFiles(cssText, bladeDirPath) {
 
       const tokens = [];
       r.walkDecls(d => {
-        const cls = mapDeclToBs(d.prop, d.value);
+        const cls = mapDeclToBs(d.prop, d.value, null, r.selector);
         if (cls) tokens.push(cls);
       });
       if (!tokens.length) continue;
@@ -324,7 +405,11 @@ export function removeMappedStyles(cssText, existingClasses) {
 
     // Remove any declarations that map to Bootstrap utilities
     r.walkDecls(d => {
-      const mapped = mapDeclToBs(d.prop, d.value);
+      // Do not remove text-decoration unless we explicitly appended a Bootstrap replacement.
+      // For safety, skip removal of text-decoration here.
+      if (String(d.prop).toLowerCase() === 'text-decoration') return;
+
+      const mapped = mapDeclToBs(d.prop, d.value, null, r.selector);
       if (mapped) {
         d.remove();
         removedDecls += 1;
@@ -355,7 +440,10 @@ export function removeMappedStyles(cssText, existingClasses) {
 
         // Remove any declarations that map to Bootstrap utilities
         rule.walkDecls(d => {
-          const mapped = mapDeclToBs(d.prop, d.value, mediaResult.breakpoint);
+          // Do not remove text-decoration in responsive rules either unless replaced explicitly.
+          if (String(d.prop).toLowerCase() === 'text-decoration') return;
+
+          const mapped = mapDeclToBs(d.prop, d.value, mediaResult.breakpoint, rule.selector);
           if (mapped) {
             d.remove();
             removedDecls += 1;

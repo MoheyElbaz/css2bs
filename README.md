@@ -80,8 +80,13 @@ css2bs path/to/styles.css path/to/resources/views
 - `padding-top`, `padding-bottom`, `padding-left`, `padding-right`
 - `padding-inline-start`, `padding-inline-end`
 
-### Line Height
-- `line-height`
+### Typography Properties
+- `font-size` → `fs-*` or `display-*` classes
+- `font-weight` → `fw-*` classes
+- `font-style` → `fst-*` classes
+- `text-transform` → `text-*` classes
+- `text-decoration` → `text-decoration-*` classes
+- `line-height` → `lh-*` classes
 
 ### Media Queries
 - `@media (min-width: 576px)` → `sm-*` classes
@@ -121,6 +126,28 @@ The tool maps CSS values to Bootstrap 5.3 spacing scale:
 | `@media (min-width: 1200px)` | `xl` | `xl-*` |
 | `@media (min-width: 1400px)` | `xxl` | `xxl-*` |
 
+### Font Size Mapping
+
+| CSS Value | Bootstrap Class | Rem Equivalent |
+|-----------|----------------|----------------|
+| `0.875rem` or smaller | `fs-6` | 14px |
+| `1rem` | `fs-5` | 16px |
+| `1.125rem` | `fs-4` | 18px |
+| `1.25rem` | `fs-3` | 20px |
+| `1.5rem` | `fs-2` | 24px |
+| `2rem` | `fs-1` | 32px |
+
+### Display Utilities (Large Font Sizes)
+
+| CSS Value | Bootstrap Class | Rem Equivalent |
+|-----------|----------------|----------------|
+| `2.5rem+` | `display-1` | 40px+ |
+| `2rem+` | `display-2` | 32px+ |
+| `1.75rem+` | `display-3` | 28px+ |
+| `1.5rem+` | `display-4` | 24px+ |
+| `1.25rem+` | `display-5` | 20px+ |
+| `1.125rem+` | `display-6` | 18px+ |
+
 ### Line Height Mapping
 
 | CSS Value | Bootstrap Class |
@@ -129,6 +156,15 @@ The tool maps CSS values to Bootstrap 5.3 spacing scale:
 | `1.25` | `lh-sm` |
 | `1.5` | `lh-base` |
 | `2` | `lh-lg` |
+
+### Font Weight Mapping
+
+| CSS Value | Bootstrap Class |
+|-----------|----------------|
+| `100-300` | `fw-lighter` |
+| `400-500` | `fw-normal` |
+| `600-800` | `fw-bold` |
+| `900` | `fw-bolder` |
 
 ## 🛡️ Safety Features
 
@@ -235,6 +271,12 @@ If you encounter any issues or have questions:
 3. Include your CSS and Blade file examples
 
 ## 🔄 Version History
+
+- **v0.3.0**: Added comprehensive typography support
+- Font-size mapping to `fs-*` and `display-*` utilities
+- Font-weight, font-style, text-transform, and text-decoration support
+- Smart conflict resolution between `fs-*` and `display-*` classes
+- Responsive typography with all breakpoints
 
 - **v0.2.0**: Added Bootstrap 5.3 responsive media query support
 - Support for responsive breakpoints (sm, md, lg, xl, xxl)
