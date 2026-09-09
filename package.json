@@ -13,7 +13,7 @@
   ],
   "scripts": {
     "dev": "node bin/cli.js --help",
-    "test": "node --test 'test/*.test.js'"
+    "test": "node --test test/*.test.js"
   },
   "dependencies": {
     "commander": "^12.1.0",
