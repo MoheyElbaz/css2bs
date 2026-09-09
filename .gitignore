@@ -1,1 +1,14 @@
+node_modules/
 test-files/*
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editor / OS
+.idea
+.DS_Store
+
+# Temp
+/tmp
+.cache

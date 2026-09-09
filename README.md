@@ -42,6 +42,29 @@ npx css2bs <cssFile> <bladeDir>
 css2bs path/to/styles.css path/to/resources/views
 ```
 
+Run without a flag in a terminal and it shows what would change, then asks:
+
+```
+  3 Blade files and 1 CSS file would change.
+
+    1  Preview only — show the changes, write nothing
+    2  Create a git branch, then apply
+    3  Apply to the working tree
+
+  Choose [1]:
+```
+
+Or pick the mode up front:
+
+| flag | what it does |
+| --- | --- |
+| `--dry-run` | print the changes, write nothing |
+| `--branch` | create a `css2bs/<timestamp>` branch, then apply there |
+| `--write` | apply to the working tree |
+
+With no flag and no terminal — a pipe, or CI — it previews and exits. A script that
+did not ask for file edits does not get them.
+
 ### What it does
 
 1. **Scans Blade files** to find existing class tokens
@@ -49,6 +72,9 @@ css2bs path/to/styles.css path/to/resources/views
 3. **Maps CSS to Bootstrap utilities** using Bootstrap 5 spacing scale
 4. **Updates Blade templates** by appending Bootstrap classes
 5. **Cleans CSS file** by removing converted rules
+
+Steps 4 and 5 edit your files in place. That is the point of the tool, but it is why
+preview is the default and why `--branch` exists.
 
 ### Example Transformation
 
@@ -213,7 +239,19 @@ The tool maps CSS values to Bootstrap 5.3 spacing scale:
 | `600-800` | `fw-bold` |
 | `900` | `fw-bolder` |
 
-## 🛡️ Safety Features
+## 🛡️ Safety
+
+### Your own classes are never removed
+
+Bootstrap's `fs-*` and `display-*` utilities are matched with anchored patterns, so a
+class of your own that merely contains one of those fragments — `user-prefs-panel`,
+`sidebar-display-toggle` — is left alone. Class order is preserved and generated
+utilities are appended at the end, so diffs stay readable.
+
+### Nothing is written until you choose
+
+Preview is the default. `--branch` puts the edits on a fresh git branch and refuses if
+the working tree is dirty, so `git checkout -` undoes everything.
 
 ### Conservative CSS Removal
 The tool uses intelligent logic to preserve layout-critical properties:
