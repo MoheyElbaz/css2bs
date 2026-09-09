@@ -23,15 +23,26 @@ A comprehensive CLI tool that automatically converts CSS properties to Bootstrap
 
 ## 📦 Installation
 
+css2bs is a **development tool** — a one-off codemod you run against a project, not
+something your application imports. Nothing it installs belongs in a production bundle.
+
+Most of the time you do not need to install it at all:
+
 ```bash
-npm install -g css2bs
+npx css2bs <cssFile> <bladeDir>
 ```
 
-Or use locally in your project:
+If you will run it repeatedly on the same project, add it as a **dev dependency** so it
+stays out of `dependencies`:
 
 ```bash
-npm install css2bs
-npx css2bs <cssFile> <bladeDir>
+npm install --save-dev css2bs
+```
+
+Or install it globally if you use it across several projects:
+
+```bash
+npm install -g css2bs
 ```
 
 ## 🎯 Usage
