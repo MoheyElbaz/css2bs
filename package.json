@@ -1,6 +1,6 @@
 {
   "name": "css2bs",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "type": "module",
   "description": "CLI tool to convert CSS rules into Bootstrap utility class names",
   "bin": {
