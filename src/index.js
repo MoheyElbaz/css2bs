@@ -144,83 +144,74 @@ function walkBladeFiles(dir) {
 }
 
 /**
- * Clean up conflicting responsive classes
+ * Bootstrap's own font-size and display utilities, anchored.
+ *
+ * These were previously detected with `token.includes('fs-')` and
+ * `token.includes('display-')`, which are substring tests: a class such as
+ * `user-prefs-panel` or `sidebar-display-toggle` matched, was treated as a
+ * Bootstrap utility, and could then be deleted from the author's markup.
+ */
+const BOOTSTRAP_FS = /^(?:(?:sm|md|lg|xl|xxl)-)?fs-[1-6]$/;
+const BOOTSTRAP_DISPLAY = /^(?:(?:sm|md|lg|xl|xxl)-)?display-[1-6]$/;
+
+function breakpointOf(token) {
+  const match = token.match(/^(sm|md|lg|xl|xxl)-/);
+  return match ? match[1] : "regular";
+}
+
+function scaleOf(token) {
+  const match = token.match(/-(\d+)$/);
+  return match ? parseInt(match[1], 10) : 0;
+}
+
+/**
+ * Drop Bootstrap sizing utilities that contradict each other at the same
+ * breakpoint. Only tokens matching the anchored patterns above take part; every
+ * other token is the author's own class and is always kept, in its original
+ * order.
  */
 function cleanConflictingClasses(classes) {
-  const tokens = classes.split(/\s+/).filter(Boolean);
-  const cleaned = [];
-
-  // Group classes by type and breakpoint
-  const classGroups = {
-    display: { regular: [], sm: [], md: [], lg: [], xl: [], xxl: [] },
-    fs: { regular: [], sm: [], md: [], lg: [], xl: [], xxl: [] }
-  };
-
-  // Separate font-related classes from other classes
-  const otherClasses = [];
-
-  for (const token of tokens) {
-    if (token.includes('display-')) {
-      // Check for responsive display classes: sm-display-1, md-display-2, etc.
-      if (token.match(/^(sm|md|lg|xl|xxl)-display-/)) {
-        const breakpoint = token.split('-')[0];
-        classGroups.display[breakpoint].push(token);
-      } else {
-        classGroups.display.regular.push(token);
-      }
-    } else if (token.includes('fs-')) {
-      // Check for responsive font-size classes: sm-fs-1, md-fs-2, etc.
-      if (token.match(/^(sm|md|lg|xl|xxl)-fs-/)) {
-        const breakpoint = token.split('-')[0];
-        classGroups.fs[breakpoint].push(token);
-      } else {
-        classGroups.fs.regular.push(token);
-      }
-    } else {
-      otherClasses.push(token);
+  const seen = new Set();
+  const ordered = [];
+  for (const token of classes.split(/\s+/).filter(Boolean)) {
+    if (!seen.has(token)) {
+      seen.add(token);
+      ordered.push(token);
     }
   }
 
-  // Check if we have any display classes at all
-  const hasAnyDisplayClasses = Object.values(classGroups.display).some(arr => arr.length > 0);
-  const hasAnyFsClasses = Object.values(classGroups.fs).some(arr => arr.length > 0);
+  const displays = new Map();
+  const fontSizes = new Map();
 
-  // If we have both display and fs classes, prefer display and remove all fs classes
-  if (hasAnyDisplayClasses && hasAnyFsClasses) {
-    // Only add display classes, ignore fs classes
-    const breakpoints = ['regular', 'sm', 'md', 'lg', 'xl', 'xxl'];
-    for (const breakpoint of breakpoints) {
-      cleaned.push(...classGroups.display[breakpoint]);
-    }
-  } else if (hasAnyDisplayClasses) {
-    // Only display classes - choose the largest size for each breakpoint
-    const breakpoints = ['regular', 'sm', 'md', 'lg', 'xl', 'xxl'];
-    for (const breakpoint of breakpoints) {
-      const displayClasses = classGroups.display[breakpoint];
-      if (displayClasses.length > 0) {
-        // Choose the largest display class (display-1 is largest)
-        const sortedClasses = displayClasses.sort((a, b) => {
-          const aNum = parseInt(a.match(/display-(\d+)/)?.[1] || '0');
-          const bNum = parseInt(b.match(/display-(\d+)/)?.[1] || '0');
-          return aNum - bNum; // Smaller number = larger display
-        });
-        cleaned.push(sortedClasses[0]); // Take the largest (smallest number)
-      }
-    }
-  } else if (hasAnyFsClasses) {
-    // Only fs classes
-    const breakpoints = ['regular', 'sm', 'md', 'lg', 'xl', 'xxl'];
-    for (const breakpoint of breakpoints) {
-      cleaned.push(...classGroups.fs[breakpoint]);
-    }
+  for (const token of ordered) {
+    const bucket = BOOTSTRAP_DISPLAY.test(token) ? displays
+      : BOOTSTRAP_FS.test(token) ? fontSizes
+        : null;
+    if (!bucket) continue;
+
+    const bp = breakpointOf(token);
+    if (!bucket.has(bp)) bucket.set(bp, []);
+    bucket.get(bp).push(token);
   }
 
-  // Add all other classes
-  cleaned.push(...otherClasses);
+  const drop = new Set();
 
-  // Remove duplicates and return
-  const uniqueClasses = [...new Set(cleaned)];
-  return uniqueClasses.join(' ');
+  for (const [bp, tokens] of displays) {
+    // A display utility and a font-size utility at the same breakpoint set the
+    // same property, so keep the display one.
+    for (const token of fontSizes.get(bp) || []) drop.add(token);
+
+    // display-1 is the largest, so the lowest number wins.
+    const keep = tokens.slice().sort((a, b) => scaleOf(a) - scaleOf(b))[0];
+    for (const token of tokens) if (token !== keep) drop.add(token);
+  }
+
+  for (const [bp, tokens] of fontSizes) {
+    if (displays.has(bp)) continue;
+    for (const token of tokens.slice(1)) drop.add(token);
+  }
+
+  return ordered.filter(token => !drop.has(token)).join(" ");
 }
 
 function appendBootstrapClassesInClassAttr(html, classToken, classesToAppend) {
@@ -322,6 +313,13 @@ export async function convertCssToBootstrap(cssText, { selector = "" } = {}) {
   return { text, html, mediaQueries };
 }
 
+/**
+ * Work out which Blade files would change and how. Writes nothing — the caller
+ * decides whether to apply the returned edits, which is what makes the preview
+ * mode honest: preview and write run this same code.
+ *
+ * @returns {Promise<{edits: {file: string, before: string, after: string}[], map: Object, existingClasses: Set<string>}>}
+ */
 export async function applyCssToBladeFiles(cssText, bladeDirPath) {
   // First, scan all Blade files to find existing class tokens
   const files = walkBladeFiles(bladeDirPath);
@@ -419,23 +417,22 @@ export async function applyCssToBladeFiles(cssText, bladeDirPath) {
     }
   });
 
-  if (classTokenToBs.size === 0) return { updatedFiles: [], map: {}, existingClasses };
+  if (classTokenToBs.size === 0) return { edits: [], map: {}, existingClasses };
 
   // Collapse sets to strings
   const finalMap = new Map();
   for (const [k, set] of classTokenToBs) finalMap.set(k, Array.from(set).sort().join(" "));
 
-  const updatedFiles = [];
+  const edits = [];
   for (const file of files) {
     try {
-      const original = fs.readFileSync(file, "utf8");
-      let updated = original;
+      const before = fs.readFileSync(file, "utf8");
+      let after = before;
       for (const [classToken, bs] of finalMap) {
-        updated = appendBootstrapClassesInClassAttr(updated, classToken, bs);
+        after = appendBootstrapClassesInClassAttr(after, classToken, bs);
       }
-      if (updated !== original) {
-        fs.writeFileSync(file, updated);
-        updatedFiles.push(file);
+      if (after !== before) {
+        edits.push({ file, before, after });
       }
     } catch (err) {
       console.warn(`Warning: Could not process file ${file}: ${err.message}`);
@@ -443,7 +440,7 @@ export async function applyCssToBladeFiles(cssText, bladeDirPath) {
     }
   }
 
-  return { updatedFiles, map: Object.fromEntries(finalMap), existingClasses };
+  return { edits, map: Object.fromEntries(finalMap), existingClasses };
 }
 
 /**
@@ -473,7 +470,7 @@ function isLayoutCriticalProperty(prop, value) {
   return false;
 }
 
-export function removeMappedStyles(cssText, existingClasses, appliedClassesMap = new Map()) {
+export function removeMappedStyles(cssText, existingClasses) {
   const result = postcss().process(cssText, { parser: safeParser });
   const root = result.root;
   let removedDecls = 0;
@@ -531,32 +528,17 @@ export function removeMappedStyles(cssText, existingClasses, appliedClassesMap =
         // Conservative removal - only remove CSS if all relevant instances in Blade files have been enhanced
         rule.walkDecls(d => {
           const mapped = mapDeclToBs(d.prop, d.value, breakpoint, rule.selector);
-          if (mapped) {
-            // Check if this is a layout-critical property and if all instances are covered
-            const classTokens = extractClassTokens(rule.selector);
-            const relevantClasses = classTokens.filter(token => existingClasses.has(token) && !bootstrapComponentClasses.has(token));
+          if (!mapped) return;
 
-            let shouldRemove = true;
+          // Layout-critical properties stay, the same rule the non-media branch
+          // above applies. This used to call getClassInstances()/hasBootstrapClass()
+          // against a `bladeContent` variable — none of the three was ever defined,
+          // so the branch was a ReferenceError waiting for a mapper that returns a
+          // value for responsive position/z-index/top.
+          if (isLayoutCriticalProperty(d.prop, d.value)) return;
 
-            // For layout-critical properties, be extra conservative
-            if (isLayoutCriticalProperty(d.prop)) {
-              shouldRemove = relevantClasses.length > 0 && relevantClasses.every(className => {
-                const instances = getClassInstances(className, bladeContent);
-                return instances.length > 0 && instances.every(instance => hasBootstrapClass(instance));
-              });
-            } else {
-              // For non-critical properties, use normal conservative approach
-              shouldRemove = relevantClasses.length > 0 && relevantClasses.some(className => {
-                const instances = getClassInstances(className, bladeContent);
-                return instances.length > 0 && instances.every(instance => hasBootstrapClass(instance));
-              });
-            }
-
-            if (shouldRemove) {
-              d.remove();
-              removedDecls += 1;
-            }
-          }
+          d.remove();
+          removedDecls += 1;
         });
 
         // If rule is now empty, remove it

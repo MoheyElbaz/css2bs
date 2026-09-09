@@ -1,6 +1,6 @@
 {
   "name": "css2bs",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "description": "CLI tool to convert CSS rules into Bootstrap utility class names",
   "bin": {
@@ -13,7 +13,7 @@
   ],
   "scripts": {
     "dev": "node bin/cli.js --help",
-    "test": "node test/run.js"
+    "test": "node --test 'test/*.test.js'"
   },
   "dependencies": {
     "commander": "^12.1.0",
